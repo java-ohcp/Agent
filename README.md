@@ -64,3 +64,17 @@ print(result.answer, result.memory)
 - `AgentLoop.thinker` 只负责决策；执行结果始终通过反馈记忆回到上下文。
 - 文件工具采用目录穿越防护；HTTP 工具采用显式主机白名单。
 - 长期记忆文件默认由调用者指定路径，示例写入 `.runtime/`，该目录已忽略提交。
+## 自动合并配置
+
+仓库新增两个工作流：
+
+- `.github/workflows/ci.yml`：每次 push / PR 运行 `unittest`。
+- `.github/workflows/auto-merge.yml`：当同一仓库的 PR 被加上 `automerge` 标签后，自动启用 squash auto-merge；分支保护规则和 CI 通过后才会合并。
+
+使用方式：
+
+1. 在 GitHub 仓库 Settings → General → Pull Requests 中打开 **Allow auto-merge**。
+2. 在仓库 Rules → Rulesets 中设置 main 保护规则，至少要求 `CI / tests` 检查通过。
+3. 给需要合并的 PR 添加 `automerge` 标签。
+
+> `automerge` 工作流不会绕过分支保护，也不会替用户通过代码审查。真正的机器人“自动批准”需要配置独立 GitHub App 或具有 `pull_requests: write` 权限的机器账号令牌。
