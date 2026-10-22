@@ -42,7 +42,8 @@ public final class CropNutritionAgent {
         var grounded = new Perception.Context(context.input(), context.query(), eligible);
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
-                ModelDecision proposed = model.decide(grounded);
+                ModelDecision proposed = attempt == 0 ? model.decide(grounded) : model.repair(grounded,
+                        "前一次输出未通过解析或证据校验。只返回符合约定的单个JSON对象；READY必须引用已提供的证据ID且questions为空。信息不足时返回NEED_MORE_INFO。");
                 Decision checked = validate(proposed, eligible);
                 if (checked != null) return checked;
             } catch (InterruptedException e) {
@@ -79,6 +80,10 @@ public final class CropNutritionAgent {
                 entry.getValue().stream().map(Evidence::id).toList()))
                 .sorted(java.util.Comparator.comparingDouble(Candidate::matchScore).reversed()).toList();
         var selected = proposed.evidenceIds().stream().distinct().map(byId::get).toList();
+        if (candidates.size() > 1 && candidates.get(0).matchScore() - candidates.get(1).matchScore() < 0.08) {
+            return clarify(selected, "多个缺素候选匹配度接近，请补充叶龄、叶脉和叶缘变化后鉴别。",
+                    List.of("AMBIGUOUS_CANDIDATES"));
+        }
         return new Decision(Status.READY, candidates, selected, List.of(),
                 List.of("将候选类型和引用证据交给施肥建议模块", "结合土壤或植株检测复核"),
                 "已依据检索证据形成候选结果；匹配分数不是确诊概率。科学施肥，减少盲目投入。",

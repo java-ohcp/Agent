@@ -89,4 +89,36 @@ class CropNutritionAgentTest {
         var agent = new CropNutritionAgent(q -> List.of(evidence), planner, 0.5);
         assertEquals(Status.READY, agent.analyze(input).status());
     }
+
+    @Test void repairReceivesValidationFeedbackAndCanCorrectInventedReference() {
+        var calls = new AtomicInteger();
+        var model = new DecisionModel() {
+            @Override public ModelDecision decide(Perception.Context context) {
+                return new ModelDecision("READY", List.of("invented"), List.of());
+            }
+            @Override public ModelDecision repair(Perception.Context context, String feedback) {
+                assertTrue(feedback.contains("证据")); calls.incrementAndGet();
+                return new ModelDecision("READY", List.of(evidence.id()), List.of());
+            }
+        };
+        assertEquals(Status.READY, new CropNutritionAgent(q -> List.of(evidence), model, 0.5).analyze(input).status());
+        assertEquals(1, calls.get());
+    }
+
+    @Test void ambiguousSelectedCandidatesRequireMoreInformation() {
+        var other = new Evidence("fixture-mg", "镁", List.of("水稻"), "另一条测试证据", "https://example.org/other", 0.83);
+        var agent = new CropNutritionAgent(q -> List.of(evidence, other),
+                context -> new ModelDecision("READY", List.of(evidence.id(), other.id()), List.of()), 0.5);
+        var result = agent.analyze(input);
+        assertEquals(Status.NEED_MORE_INFO, result.status());
+        assertTrue(result.warnings().contains("AMBIGUOUS_CANDIDATES"));
+    }
+
+    @Test void nonHttpSourcesAreNeverGivenToModel() {
+        var invalid = new Evidence("invalid", "氮", List.of("水稻"), "测试证据", "javascript:alert(1)", 0.99);
+        var agent = new CropNutritionAgent(q -> List.of(invalid), context -> {
+            throw new AssertionError("Invalid source must be filtered before model call");
+        }, 0.5);
+        assertEquals(Status.NEED_MORE_INFO, agent.analyze(input).status());
+    }
 }
