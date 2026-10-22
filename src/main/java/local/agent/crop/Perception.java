@@ -37,10 +37,19 @@ public final class Perception {
 
     private static boolean valid(Evidence e, String crop) {
         return e != null && present(e.id(), 200) && present(e.nutrient(), 100)
-                && present(e.text(), 12000) && present(e.sourceUrl(), 2000)
+                && present(e.text(), 12000) && source(e.sourceUrl())
                 && Double.isFinite(e.score()) && e.score() >= 0 && e.score() <= 1
                 && e.crops() != null && !e.crops().isEmpty()
                 && (crop.isBlank() || e.crops().contains(crop) || e.crops().contains("通用"));
+    }
+
+    private static boolean source(String value) {
+        if (!present(value, 2000)) return false;
+        try {
+            var uri = java.net.URI.create(value);
+            return ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()))
+                    && uri.getHost() != null && uri.getUserInfo() == null;
+        } catch (IllegalArgumentException error) { return false; }
     }
 
     private static boolean present(String value, int max) {

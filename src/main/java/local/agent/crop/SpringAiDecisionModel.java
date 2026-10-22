@@ -1,6 +1,7 @@
 package local.agent.crop;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
@@ -27,7 +28,7 @@ public final class SpringAiDecisionModel implements DecisionModel {
     }
 
     private final Planner planner;
-    private final ObjectMapper json = new ObjectMapper();
+    private final ObjectMapper json = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
     public SpringAiDecisionModel(ChatModel springModel) {
         java.util.Objects.requireNonNull(springModel);
@@ -54,8 +55,19 @@ public final class SpringAiDecisionModel implements DecisionModel {
 
     @Override
     public ModelDecision decide(Perception.Context context) throws Exception {
-        String output = planner.decide(json.writeValueAsString(context));
+        return parse(planner.decide(json.writeValueAsString(context)));
+    }
+
+    @Override
+    public ModelDecision repair(Perception.Context context, String validationFeedback) throws Exception {
+        return parse(planner.decide(json.writeValueAsString(java.util.Map.of(
+                "context", context, "validationFeedback", validationFeedback))));
+    }
+
+    private ModelDecision parse(String output) throws Exception {
         if (output == null || output.length() > 16000) throw new IllegalStateException("Invalid model response size");
+        output = output.strip();
+        if (output.startsWith("```json\n") && output.endsWith("```")) output = output.substring(8, output.length() - 3).strip();
         return json.readValue(output, ModelDecision.class);
     }
 }

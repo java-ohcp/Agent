@@ -11,6 +11,34 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HttpKnowledgeSearchTest {
+    private void withResponse(String body, java.util.function.Consumer<HttpKnowledgeSearch> assertion) throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/search", exchange -> {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try { exchange.getResponseBody().write(bytes); } catch (java.io.IOException ignored) { }
+            finally { exchange.close(); }
+        });
+        server.start();
+        try { assertion.accept(new HttpKnowledgeSearch(URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/search"), null)); }
+        finally { server.stop(0); }
+    }
+
+    @Test void acceptsBackendApiEnvelopeButNeverMasksApplicationErrors() throws Exception {
+        withResponse("{\"code\":0,\"data\":{\"matches\":[]}}", client -> {
+            try { assertTrue(client.search(new SearchQuery("水稻", "老叶发黄", 8)).isEmpty()); }
+            catch (Exception error) { throw new AssertionError(error); }
+        });
+        withResponse("{\"code\":5000,\"data\":{\"matches\":[]}}", client ->
+                assertThrows(IllegalStateException.class, () -> client.search(new SearchQuery("水稻", "老叶发黄", 8))));
+    }
+
+    @Test void cancelsOversizedResponseAndRejectsTrailingJson() throws Exception {
+        withResponse(" ".repeat(1_048_577), client ->
+                assertThrows(java.io.IOException.class, () -> client.search(new SearchQuery("水稻", "老叶发黄", 8))));
+        withResponse("{\"matches\":[]} {\"matches\":[]}", client ->
+                assertThrows(java.io.IOException.class, () -> client.search(new SearchQuery("水稻", "老叶发黄", 8))));
+    }
     @Test void postsQueryWithAuthenticationAndParsesEvidence() throws Exception {
         var receivedBody = new AtomicReference<String>();
         var receivedAuth = new AtomicReference<String>();

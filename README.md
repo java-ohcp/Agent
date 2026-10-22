@@ -47,11 +47,15 @@ var result = agent.analyze(new Contracts.Input(
     "水稻", "下部老叶均匀黄化，植株矮小，分蘖减少", "分蘖期", "近期多雨", "", ""));
 ```
 
-接口约定见 [docs/INTEGRATION.md](docs/INTEGRATION.md)。默认建议协议尚待真实接口样例确认；
+接口约定见 [docs/INTEGRATION.md](docs/INTEGRATION.md)。已适配 backend 增强分支的知识检索端点；
 如字段或响应包装不同，只需修改 `HttpKnowledgeSearch`，也可以直接实现 `KnowledgeSearch`。
 
 `Input.documentText` 和 `imageSymptoms` 接收上游已提取文本，不直接解析文档或图片。
 模块不保留会话；多轮补充信息由上游合并成新 `Input` 再次调用。
+
+当前增强支持统一 API 包装和旧裸响应、1 MiB 接收上限、HTTP(S) 来源过滤、
+带校验反馈的模型修复重试。模型选择多个分数接近的缺素候选时，先补充询问再鉴别。
+重试只输出结构化决策与校验反馈，不要求或存储内部推理过程。
 
 ## Python 行动执行与反馈闭环
 
